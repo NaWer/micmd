@@ -40,7 +40,7 @@ static dev_info* pdi;
 static tag_info ti;
 static mifare_param param;
 
-const string VERSION = "0.01alpha";
+const string VERSION = "0.01";
 
 bool connected = false;
 bool b4k;
@@ -66,7 +66,7 @@ byte* string_to_bytearray(string src, int* return_length)
 
 	*return_length = length;
 	byte c1,c2;
-	for (int i=0; i < src.length(); i += 2) {
+	for (UINT i=0; i < src.length(); i += 2) {
 		if ((src[i] >= '0') && (src[i] <= '9'))
 			c1 = src[i] - '0';
 		if ((src[i] >= 'a') && (src[i] <= 'f'))
@@ -126,15 +126,22 @@ uint32_t get_trailer_block(uint32_t uiFirstBlock)
 	if (uiFirstBlock<128) return uiFirstBlock+3; else return uiFirstBlock+15;
 }
 
-void pause() {
-#ifdef WIN32
-	system("pause");
-#endif
+void press_to_continue() {
+	string dummy = "";
+	cout << "Press ENTER to continue... ";
+	getline(cin, dummy);
+
 }
 void cls() {
 #ifdef WIN32
 	system("cls");
 #endif
+#ifndef WIN32
+	system("clear");
+#endif
+
+
+
 }
 
 void print_menu() {
@@ -152,7 +159,7 @@ void print_menu() {
 	cout << "h - display main menu\n";
 	cout << "o - Open connection\n";
 	cout << "at - analyse manually input trailer data\n";
-	cout << "cls - Clear screen\n";
+	cout << "cls, clear - Clear screen\n";
 	cout << "q - Exit\n";
 	cout << "\n-- After connection is successfully opened, you may use following\n-- additional commands:\n";
 
@@ -163,7 +170,7 @@ void print_menu() {
 	cout << "t - Transfer value block to volatile memory\n";
 	cout << "d - Decrement value block\n";
 	cout << "i - Increment value block\n";
-	cout << "s - Store value block\n";
+	cout << "s - ReStore value block\n";
 	cout << "c - Close existing connection\n";
 	cout << "\n";
 
@@ -199,13 +206,13 @@ bool open_connection() {
 	cout << "Connected to " << pdi->acName << endl;
 	if (!nfc_initiator_select_tag(pdi, IM_ISO14443A_106, NULL, 0, &ti)) {
 		cout << "No MIFARE tag found!" << endl;
-		pause();
+		press_to_continue();
 		close_connection();
 		return false;
 	} 
 	if ((ti.tia.btSak & 0x08) == 0) {
 		cout << "This is not a valid MIFARE _classic_ tag!" << endl;
-		pause();
+		press_to_continue();
 		close_connection();
 		return false;
 	}
@@ -226,7 +233,7 @@ bool authenticate(byte* key, bool keyB, uint8_t sector) {
 	if (res)
 		cout << "Authentication successful. :-P" << endl;
 	else {
-		cout << "Authentication FAILURE! :'( The tag has now closed connection, reconnecting..." << endl;
+		cout << "Authentication FAILURE! :'( Tag halted, reconnecting..." << endl;
 		close_connection();
 		connected = open_connection();
 	}
@@ -260,9 +267,52 @@ void parse_trailer(byte* data) {
 	for (int i=3; i >= 0; i--) {
 		cout << "|" << (acs[i].c1 ? " x " : " - ") << (acs[i].c2 ? " x " : " - ") << (acs[i].c3 ? " x " : " - ") << "| block " << i << ((i == 3) ? " (trailer) " : "") << endl;
 	}
+	cout << endl;
+
+		cout << "-- Trailer block has following AC set: " << endl;
+	if ((!acs[3].c1) && (!acs[3].c2) && (!acs[3].c3))
+		cout << "Key A may be written by itself, AC may be read by key A, key B may be read and written by key A." << endl;
+	if ((!acs[3].c1) && (acs[3].c2) && (!acs[3].c3))
+		cout << "Key A cannot be changed, AC may be read by key A, key B may be read by key A." << endl;
+	if ((acs[3].c1) && (!acs[3].c2) && (!acs[3].c3))
+		cout << "Key A may be changed by key B, AC may be read by both keys, key B may be changed by key B." << endl;
+	if ((acs[3].c1) && (acs[3].c2) && (!acs[3].c3))
+		cout << "AC may be read by both keys, nothing else on the trailer block allowed." << endl;
+	if ((!acs[3].c1) && (!acs[3].c2) && (acs[3].c3))
+		cout << "Transport configuration, everything on trailer block (except reading key A) may be done by key A." << endl;
+	if ((!acs[3].c1) && (acs[3].c2) && (acs[3].c3))
+		cout << "Key A may be changed by key B, AC may be read by both keys, changed by key B, key B may be changed by key B." << endl;
+	if ((acs[3].c1) && (!acs[3].c2) && (acs[3].c3))
+		cout << "AC may be read by both keys, written by key B. Nothing else on the trailer block allowed." << endl;
+	if ((acs[3].c1) && (acs[3].c2) && (acs[3].c3))
+		cout << "AC may be read by both keys, nothing else on the trailer block allowed." << endl;
+
+	cout << endl;
 
 
+	for (int i=2; i >= 0; i--) {
+		cout << "-- Block " << i << " (relative to sector beginning) has following AC set: " << endl;
 
+		if ((!acs[i].c1) && (!acs[i].c2) && (!acs[i].c3))
+			cout << "Transport configuration; may be read, written, incremented and decremented by both keys." << endl;
+		if ((!acs[i].c1) && (acs[i].c2) && (!acs[i].c3))
+			cout << "May be read by both keys, read-only." << endl;
+		if ((acs[i].c1) && (!acs[i].c2) && (!acs[i].c3))
+			cout << "May be read by both keys, written by key B. Value operations not allowed." << endl;
+		if ((acs[i].c1) && (acs[i].c2) && (!acs[i].c3))
+			cout << "May be read and decremented by both keys, written and incremented only by key B" << endl;
+		if ((!acs[i].c1) && (!acs[i].c2) && (acs[i].c3))
+			cout << "Decrement-only block. May be read and decremented by both keys. Nothing else allowed." << endl;
+		if ((!acs[i].c1) && (acs[i].c2) && (acs[i].c3))
+			cout << "May be accessed (read/write) only by key B. Value operations not allowed." << endl;
+		if ((acs[i].c1) && (!acs[i].c2) && (acs[i].c3))
+			cout << "May be read only by key B, read-only." << endl;
+		if ((acs[i].c1) && (acs[i].c2) && (acs[i].c3))
+			cout << "Dead block, no operation is allowed." << endl;
+
+
+		cout << endl;
+	}
 
 
 }
@@ -271,13 +321,15 @@ bool readblock(uint8_t block) {
 	bool res = nfc_initiator_mifare_cmd(pdi, MC_READ, block, &param);
 
 	if (res) {
-		cout << bytearray_to_string(param.mpd.abtData, 16) << " ( " << bytearray_to_string(param.mpd.abtData, 16, false) << " ) " << endl;
+		cout << bytearray_to_string(param.mpd.abtData, 16) << "\n( " << bytearray_to_string(param.mpd.abtData, 16, false) << " ) " << endl;
 		if (is_trailer_block(block)) {
 			cout << "\nThis is the TRAILER block!" << endl;
 			parse_trailer(param.mpd.abtData);
 		}
 	} else {
-		cout << "Could not read the data block!" << endl;
+		cout << "Could not read the data block! Tag halted, reconnecting..." << endl;
+		close_connection();
+		open_connection();
 	}
 	return res;
 
@@ -299,15 +351,31 @@ bool writeblock(uint8_t block, byte* data) {
 
 	}
 
-	//// 274d7cb1fa7d
-	//// C3120B0B050481815E2A012A59805980
 	memcpy(param.mpd.abtData, data, 16);
 	bool res = nfc_initiator_mifare_cmd(pdi, MC_WRITE, block, &param);
 
 	if (res) {
-		cout << "Successfully wrote " << bytearray_to_string(param.mpd.abtData, 16) << "into block " << block << endl;
+		cout << "Successfully wrote " << bytearray_to_string(param.mpd.abtData, 16) << "into block " << (UINT) block << endl;
 	} else {
-		cout << "Could not write the data block!" << endl;
+		cout << "Could not write the data block! Tag halted, reconnecting..." << endl;
+		close_connection();
+		open_connection();
+	}
+	return res;
+
+}
+
+bool valueblock(const mifare_cmd cmd, uint8_t block, byte* data) {
+	memcpy(param.mpv.abtValue, data, 4);
+	bool res = nfc_initiator_mifare_cmd(pdi, cmd, block, &param);
+	if (res) {
+		cout << "Command successfully completed." << endl;
+		if ((cmd == MC_INCREMENT) || (cmd == MC_DECREMENT))
+			cout << "Don't forget to TRANSFER(t) the data back to permanent memory of the chip" << endl;
+	} else {
+		cout << "Something failed. Command was NOT completed. Tag halted, reconnecting..." << endl;
+		close_connection();
+		open_connection();
 	}
 	return res;
 
@@ -322,10 +390,10 @@ int _tmain(int argc, _TCHAR* argv[])
 	string menu_option;
 	connected = false;	
 
-	cout << "\n*** MiCmd 0.01alpha -- MIFARE(R) command line***\n";
+	cout << "\n*** MiCmd " << VERSION << " -- MIFARE(R) command line ***\n";
 	print_menu();
 	while (true) {
-		
+
 		cout << '\n';
 		if (connected) {
 			cout << "You are CONNECTED to " << pdi->acName << endl;
@@ -357,26 +425,24 @@ int _tmain(int argc, _TCHAR* argv[])
 			connected = open_connection();
 			continue;
 		}
-		if ((menu_option.compare("cls")) == 0) {
+		if (((menu_option.compare("cls")) == 0) || (menu_option.compare("clear") == 0)) {
 			cls();
 			continue;
 		}
-		if ((menu_option.compare("hex")) == 0) {
-			int aa = 0;
-			string txt = "fcc0f0ab";
-			void* hhh = malloc(4);
-			byte* bs = (byte*) hhh;
-			bs = string_to_bytearray(txt, &aa);
-			cout << bytearray_to_string(bs, aa) << endl;
-			free(hhh);
-			continue;
-		}
+
 		if (menu_option.compare("at") == 0) {
 			string data = "";
-			int fff = 0;
-			cout << "Enter trailer block data (in HEX, without spaces): ";
+			int length = 0;
+			cout << "Enter trailer block data (16B HEX value, without spaces): ";
 			getline(cin, data);
-			parse_trailer(string_to_bytearray(data, &fff));
+			cout << endl;
+			cout << "-- !!!! ATTENTION !!!!\nManual parsing does NOT detect inner format violation of AC part of the trailer block." << endl;
+			cout << "-- It only computes AC bits from 4-byte value by applying bitwise operations." << endl;
+			cout << "-- It totally ignores inverse AC bits in those 4 bytes." << endl;
+			cout << "-- DO NOT rely on this when calculating correct 4-byte value to write into the trailer block!" << endl;
+			cout << "-- !!!! ATTENTION !!!!" << endl << endl;
+
+			parse_trailer(string_to_bytearray(data, &length));
 
 			continue;
 		}
@@ -393,7 +459,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				cout << "Enter sector number: ";
 				fscanf_s(stdin, "%d", &block);
 				cin.ignore(999, '\n');
-				cout << "Enter key: ";
+				cout << "Enter key (6B HEX value, WITHOUT spaces): ";
 				string key = "";
 				getline(cin, key);
 
@@ -429,9 +495,71 @@ int _tmain(int argc, _TCHAR* argv[])
 
 				continue;
 			}
+
+			if ((menu_option.compare("s")) == 0) {
+
+				string data = "";
+				int length = 0;
+				uint8_t block;
+				cout << "Enter block number: ";
+				fscanf_s(stdin, "%d", &block);
+				cin.ignore(999, '\n');
+				cout << "Enter data (enter 4B HEX value, WITHOUT spaces): ";
+				getline(cin, data);
+				valueblock(MC_STORE, block, string_to_bytearray(data, &length));
+
+				continue;
+			}
+
+			if ((menu_option.compare("i")) == 0) {
+
+				byte* data = new byte[4];
+				string how_many = "";
+				int length = 0;
+				uint8_t block;
+				cout << "Enter block number: ";
+				fscanf_s(stdin, "%d", &block);
+				cin.ignore(999, '\n');
+				cout << "Increment by what number (enter 4B HEX value, WITHOUT spaces)? ";
+				getline(cin, how_many);
+				valueblock(MC_INCREMENT, block, string_to_bytearray(how_many, &length));
+
+				continue;
+			}
+
+			if ((menu_option.compare("d")) == 0) {
+
+				byte* data = new byte[4];
+				string how_many = "";
+				int length = 0;
+				uint8_t block;
+				cout << "Enter block number: ";
+				fscanf_s(stdin, "%d", &block);
+				cin.ignore(999, '\n');
+				cout << "Decrement by what number (enter 4B HEX value, WITHOUT spaces)? ";
+				getline(cin, how_many);
+				valueblock(MC_DECREMENT, block, string_to_bytearray(how_many, &length));
+
+				continue;
+			}
+
+			if ((menu_option.compare("t")) == 0) {
+
+				string data = "";
+				int length = 0;
+				uint8_t block;
+				cout << "Enter block number: ";
+				fscanf_s(stdin, "%d", &block);
+				cin.ignore(999, '\n');
+				cout << "Enter data (4B HEX value, WITHOUT spaces): ";
+				getline(cin, data);
+				valueblock(MC_TRANSFER, block, string_to_bytearray(data, &length));
+
+				continue;
+			}
 		}
 		cout << "Command " << menu_option << " not understood.\nPlease remember, to use additional commands like Read,Write,...\nyou have to be connected to the reader first." << endl;
-		pause();
+		press_to_continue();
 	}
 
 
