@@ -329,7 +329,7 @@ bool readblock(uint8_t block) {
 	} else {
 		cout << "Could not read the data block! Tag halted, reconnecting..." << endl;
 		close_connection();
-		open_connection();
+		connected = open_connection();
 	}
 	return res;
 
@@ -359,7 +359,7 @@ bool writeblock(uint8_t block, byte* data) {
 	} else {
 		cout << "Could not write the data block! Tag halted, reconnecting..." << endl;
 		close_connection();
-		open_connection();
+		connected = open_connection();
 	}
 	return res;
 
@@ -375,7 +375,7 @@ bool valueblock(const mifare_cmd cmd, uint8_t block, byte* data) {
 	} else {
 		cout << "Something failed. Command was NOT completed. Tag halted, reconnecting..." << endl;
 		close_connection();
-		open_connection();
+		connected = open_connection();
 	}
 	return res;
 
