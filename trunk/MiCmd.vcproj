@@ -122,7 +122,7 @@
 				RuntimeLibrary="2"
 				EnableFunctionLevelLinking="true"
 				UsePrecompiledHeader="2"
-				WarningLevel="3"
+				WarningLevel="1"
 				Detect64BitPortabilityProblems="false"
 				DebugInformationFormat="0"
 			/>
@@ -138,7 +138,7 @@
 			<Tool
 				Name="VCLinkerTool"
 				AdditionalDependencies="libnfc.lib"
-				ShowProgress="1"
+				ShowProgress="0"
 				LinkIncremental="1"
 				AdditionalLibraryDirectories="lib"
 				EnableUAC="true"
