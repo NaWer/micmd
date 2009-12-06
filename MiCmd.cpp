@@ -1,5 +1,10 @@
 // MiCmd.cpp : Defines the entry point for the console application.
 //
+/*
+* COPYLEFT Michal Boška aka Whitewash.
+* This program is released under GPLv3 license ( http://www.gnu.org/licenses/gpl-3.0.txt )
+*/
+
 
 #include "stdafx.h"
 
