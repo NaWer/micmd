@@ -8,7 +8,11 @@
 #include "targetver.h"
 
 #include <stdio.h>
-#include <tchar.h>
+#ifdef WIN32
+ #include <tchar.h>
+#else
+#define fscanf_s fscanf
+#endif
 
 
 
