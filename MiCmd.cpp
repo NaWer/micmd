@@ -28,24 +28,25 @@
 
 
 extern "C" {
-#include <libnfc.h>
-#include <mifaretag.h>
+#include <nfc/nfc.h>
+//#include <nfc/mifaretag.h>
 }
 
 using namespace std;
 
 typedef unsigned char byte;
+typedef unsigned int UINT;
 
 typedef struct {
 	bool c1,c2,c3;
 
 } AccessCondition;
 
-static dev_info* pdi;
-static tag_info ti;
+static nfc_device_t* pdi;
+static nfc_target_info_t ti;
 static mifare_param param;
 
-const string VERSION = "0.01";
+const string VERSION = "0.011";
 
 bool connected = false;
 bool b4k;
@@ -193,36 +194,36 @@ void close_connection() {
 }
 
 bool open_connection() {
-	pdi = nfc_connect();
-	if (pdi == INVALID_DEVICE_INFO) {
+	pdi = nfc_connect(NULL);
+	if (!pdi) {
 		cout << "Could not connect to the device." << endl;
 		return false;
 	}
 	nfc_initiator_init(pdi);
 
-	nfc_configure(pdi,DCO_ACTIVATE_FIELD,false);
+	nfc_configure(pdi,NDO_ACTIVATE_FIELD,false);
 
 
-	nfc_configure(pdi,DCO_INFINITE_SELECT,false);
-	nfc_configure(pdi,DCO_HANDLE_CRC,true);
-	nfc_configure(pdi,DCO_HANDLE_PARITY,true);
+	nfc_configure(pdi,NDO_INFINITE_SELECT,false);
+	nfc_configure(pdi,NDO_HANDLE_CRC,true);
+	nfc_configure(pdi,NDO_HANDLE_PARITY,true);
 
-	nfc_configure(pdi,DCO_ACTIVATE_FIELD,true); 
+	nfc_configure(pdi,NDO_ACTIVATE_FIELD,true); 
 	cout << "Connected to " << pdi->acName << endl;
-	if (!nfc_initiator_select_tag(pdi, IM_ISO14443A_106, NULL, 0, &ti)) {
+	if (!nfc_initiator_select_tag(pdi, NM_ISO14443A_106, NULL, 0, &ti)) {
 		cout << "No MIFARE tag found!" << endl;
 		press_to_continue();
 		close_connection();
 		return false;
 	} 
-	if ((ti.tia.btSak & 0x08) == 0) {
+	if ((ti.nai.btSak & 0x08) == 0) {
 		cout << "This is not a valid MIFARE _classic_ tag!" << endl;
 		press_to_continue();
 		close_connection();
 		return false;
 	}
-	b4k = (ti.tia.abtAtqa[1] == 0x02);
-	cout << "Found MIFARE Classic " << (b4k ? 4 : 1) << "K tag, UID: " << bytearray_to_string(ti.tia.abtUid, 4) << endl;
+	b4k = (ti.nai.abtAtqa[1] == 0x02);
+	cout << "Found MIFARE Classic " << (b4k ? 4 : 1) << "K tag, UID: " << bytearray_to_string(ti.nai.abtUid, 4) << endl;
 
 	return true;
 }
@@ -230,7 +231,7 @@ bool open_connection() {
 // b3de9843c86d
 bool authenticate(byte* key, bool keyB, uint8_t sector) {
 	uint8_t block = (sector+1)*4 - 1;
-	memcpy(param.mpa.abtUid, ti.tia.abtUid,4);
+	memcpy(param.mpa.abtUid, ti.nai.abtUid,4);
 	memcpy(param.mpa.abtKey, key, 6);
 
 	bool res = nfc_initiator_mifare_cmd(pdi, (keyB ? MC_AUTH_B : MC_AUTH_A), block, &param);
@@ -388,7 +389,7 @@ bool valueblock(const mifare_cmd cmd, uint8_t block, byte* data) {
 
 
 
-int _tmain(int argc, _TCHAR* argv[])
+int main(int argc, char* argv[])
 {
 	//set_console_size();
 
@@ -402,7 +403,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		cout << '\n';
 		if (connected) {
 			cout << "You are CONNECTED to " << pdi->acName << endl;
-			cout << "Found MIFARE Classic " << (b4k ? 4 : 1) << "K tag, UID: " << bytearray_to_string(ti.tia.abtUid, 4) << endl;
+			cout << "Found MIFARE Classic " << (b4k ? 4 : 1) << "K tag, UID: " << bytearray_to_string(ti.nai.abtUid, 4) << endl;
 		}
 		else
 			cout << "You are NOT connected, additional commands will not work.\n";
@@ -459,11 +460,12 @@ int _tmain(int argc, _TCHAR* argv[])
 			if (((menu_option.compare("a")) == 0) || ((menu_option.compare("b")) == 0)) {
 				byte* key_c;
 				int bbbb;
+				char tmp[20];
 
 				uint8_t block = 0;
 				cout << "Enter sector number: ";
-				fscanf_s(stdin, "%d", &block);
-				cin.ignore(999, '\n');
+				fgets(tmp, 20, stdin);
+				sscanf(tmp, "%d", &block);
 				cout << "Enter key (6B HEX value, WITHOUT spaces): ";
 				string key = "";
 				getline(cin, key);
@@ -475,23 +477,24 @@ int _tmain(int argc, _TCHAR* argv[])
 				continue;
 			}
 			if ((menu_option.compare("r")) == 0) {
-
+				char tmp[20];
 				uint8_t block;
 				cout << "Enter block number: ";
-				fscanf_s(stdin, "%d", &block);
-				cin.ignore(999, '\n');
+				fgets(tmp, 20, stdin); 
+				sscanf(tmp, "%d", &block);
 				readblock(block);
-
 				continue;
 			}
 
 			if ((menu_option.compare("w")) == 0) {
 				int length = 0;
+				char tmp[20];
 				uint8_t block;
 				string data = "";
 				cout << "Enter block number: ";
-				fscanf_s(stdin, "%d", &block);
-				cin.ignore(999, '\n');
+				fgets(tmp, 20, stdin);
+				sscanf(tmp, "%d", &block);
+				
 				cout << "Enter data (16B hex, WITHOUT spaces) to write: ";
 				getline(cin, data);
 
@@ -502,13 +505,13 @@ int _tmain(int argc, _TCHAR* argv[])
 			}
 
 			if ((menu_option.compare("s")) == 0) {
-
+				char tmp[20];
 				string data = "";
 				int length = 0;
 				uint8_t block;
 				cout << "Enter block number: ";
-				fscanf_s(stdin, "%d", &block);
-				cin.ignore(999, '\n');
+				fgets(tmp, 20, stdin);
+				sscanf(tmp, "%d", &block);
 				cout << "Enter data (enter 4B HEX value, WITHOUT spaces): ";
 				getline(cin, data);
 				valueblock(MC_STORE, block, string_to_bytearray(data, &length));
@@ -517,14 +520,14 @@ int _tmain(int argc, _TCHAR* argv[])
 			}
 
 			if ((menu_option.compare("i")) == 0) {
-
+				char tmp[20];
 				byte* data = new byte[4];
 				string how_many = "";
 				int length = 0;
 				uint8_t block;
 				cout << "Enter block number: ";
-				fscanf_s(stdin, "%d", &block);
-				cin.ignore(999, '\n');
+				fgets(tmp, 20, stdin);
+				sscanf(tmp, "%d", &block);
 				cout << "Increment by what number (enter 4B HEX value, WITHOUT spaces)? ";
 				getline(cin, how_many);
 				valueblock(MC_INCREMENT, block, string_to_bytearray(how_many, &length));
@@ -533,14 +536,14 @@ int _tmain(int argc, _TCHAR* argv[])
 			}
 
 			if ((menu_option.compare("d")) == 0) {
-
+				char tmp[20];
 				byte* data = new byte[4];
 				string how_many = "";
 				int length = 0;
 				uint8_t block;
 				cout << "Enter block number: ";
-				fscanf_s(stdin, "%d", &block);
-				cin.ignore(999, '\n');
+				fgets(tmp, 20, stdin);
+				sscanf(tmp, "%d", &block);
 				cout << "Decrement by what number (enter 4B HEX value, WITHOUT spaces)? ";
 				getline(cin, how_many);
 				valueblock(MC_DECREMENT, block, string_to_bytearray(how_many, &length));
@@ -549,13 +552,13 @@ int _tmain(int argc, _TCHAR* argv[])
 			}
 
 			if ((menu_option.compare("t")) == 0) {
-
+				char tmp[20];
 				string data = "";
 				int length = 0;
 				uint8_t block;
 				cout << "Enter block number: ";
-				fscanf_s(stdin, "%d", &block);
-				cin.ignore(999, '\n');
+				fgets(tmp, 20, stdin);
+				sscanf(tmp, "%d", &block);
 				cout << "Enter data (4B HEX value, WITHOUT spaces): ";
 				getline(cin, data);
 				valueblock(MC_TRANSFER, block, string_to_bytearray(data, &length));
@@ -563,7 +566,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				continue;
 			}
 		}
-		cout << "Command " << menu_option << " not understood.\nPlease remember, to use additional commands like Read,Write,...\nyou have to be connected to the reader first." << endl;
+		cout << "Command " << menu_option << " not understood.\nRemember, to use additional commands like Read,Write,...\nyou have to be connected to the reader first." << endl;
 		press_to_continue();
 	}
 
